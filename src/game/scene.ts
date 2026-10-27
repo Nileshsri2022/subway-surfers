@@ -1,11 +1,14 @@
 import * as pc from 'playcanvas';
-import { PLAYER_HALF_WIDTH, PLAYER_HEIGHT } from '../config/tuning';
+import { START_SPEED } from '../config/tuning';
+import { createCharacter, type CharacterRig } from '../render/character';
 import { createBox, createMaterial } from '../render/meshes';
+import { createPlayerState } from './player';
 
 export interface SceneHandle {
   app: pc.Application;
   camera: pc.Entity;
   playerRoot: pc.Entity;
+  character: CharacterRig;
   setCameraTarget(x: number, speed01: number): void;
   dispose(): void;
 }
@@ -13,7 +16,6 @@ export interface SceneHandle {
 const SKY_COLOR = new pc.Color(0.55, 0.72, 0.9);
 const AMBIENT_COLOR = new pc.Color(0.35, 0.4, 0.48);
 const ASPHALT_COLOR = new pc.Color(0.16, 0.17, 0.19);
-const PLAYER_COLOR = new pc.Color(0.9, 0.32, 0.24);
 const KEY_LIGHT_COLOR = new pc.Color(1, 0.95, 0.86);
 const FILL_LIGHT_COLOR = new pc.Color(0.72, 0.8, 0.95);
 
@@ -35,10 +37,6 @@ const FOG_END = 120;
 const GROUND_WIDTH = 220;
 const GROUND_DEPTH = 320;
 const GROUND_CENTER_Z = -60;
-
-// Unscaled capsule primitive from the PlayCanvas render component: height 2, radius 0.5.
-const CAPSULE_BASE_HEIGHT = 2;
-const CAPSULE_BASE_RADIUS = 0.5;
 
 // Module-scope scratch values: the camera update runs every frame and must not allocate.
 const scratchPosition = new pc.Vec3();
@@ -105,25 +103,18 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
   );
   ground.setPosition(0, -0.05, GROUND_CENTER_Z);
 
-  const playerRoot = new pc.Entity('player-root');
-  app.root.addChild(playerRoot);
-
-  const playerPlaceholder = new pc.Entity('player-placeholder');
-  const playerRender = playerPlaceholder.addComponent('render', { type: 'capsule' });
-  if (!playerRender) {
-    throw new Error('Unable to add a render component to "player-placeholder"');
-  }
-  playerRender.material = createMaterial(PLAYER_COLOR);
-
-  const playerRadiusScale = PLAYER_HALF_WIDTH / CAPSULE_BASE_RADIUS;
-  const playerHeightScale = PLAYER_HEIGHT / CAPSULE_BASE_HEIGHT;
-  playerPlaceholder.setLocalPosition(0, PLAYER_HEIGHT / 2, 0);
-  playerPlaceholder.setLocalScale(playerRadiusScale, playerHeightScale, playerRadiusScale);
-  playerRoot.addChild(playerPlaceholder);
+  const character = createCharacter(app);
+  const playerRoot = character.root;
+  const idleState = createPlayerState();
+  let syntheticDistance = 0;
+  character.update(idleState, syntheticDistance, 0);
 
   let frameSeconds = 1 / 60;
   const updateHandle = app.on('update', (dt: number) => {
     frameSeconds = dt;
+    // The game loop arrives in a later task; this keeps the rig alive meanwhile.
+    syntheticDistance += START_SPEED * dt;
+    character.update(idleState, syntheticDistance, dt);
   });
 
   function setCameraTarget(x: number, speed01: number): void {
@@ -150,10 +141,11 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
     disposed = true;
     window.removeEventListener('resize', onResize);
     updateHandle.off();
+    character.dispose();
     app.destroy();
   }
 
   app.start();
 
-  return { app, camera, playerRoot, setCameraTarget, dispose };
+  return { app, camera, playerRoot, character, setCameraTarget, dispose };
 }

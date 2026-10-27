@@ -105,16 +105,10 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
 
   const character = createCharacter(app);
   const playerRoot = character.root;
-  const idleState = createPlayerState();
-  let syntheticDistance = 0;
-  character.update(idleState, syntheticDistance, 0);
 
   let frameSeconds = 1 / 60;
   const updateHandle = app.on('update', (dt: number) => {
     frameSeconds = dt;
-    // The game loop arrives in a later task; this keeps the rig alive meanwhile.
-    syntheticDistance += START_SPEED * dt;
-    character.update(idleState, syntheticDistance, dt);
   });
 
   function setCameraTarget(x: number, speed01: number): void {

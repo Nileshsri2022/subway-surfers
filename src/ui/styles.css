@@ -1,0 +1,4 @@
+html, body { margin: 0; }
+canvas { display: block; width: 100%; height: 100%; height: 100dvh; touch-action: none; }
+#ui-root { position: fixed; inset: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); pointer-events: none; }
+.screen, .hud { display: none; pointer-events: auto; }

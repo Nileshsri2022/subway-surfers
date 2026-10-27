@@ -2,14 +2,12 @@ import * as pc from 'playcanvas';
 import { createScene, type SceneHandle } from './scene';
 import { TrackGenerator, TrackManager, defaultPopulate } from './track';
 import { Rng } from './rng';
-import { createPlayerState, updatePlayer, requestLane, requestJump, requestRoll, type PlayerState } from './player';
+import { createPlayerState, updatePlayer, requestLane, requestJump, requestRoll, startJetpack, endJetpack, playerLaneX, type PlayerState } from './player';
 import { createScoreState, tickScore, addCoin, totalScore, loadBestScore, saveBestScore, type ScoreState } from './score';
-import { createPowerUps, activatePowerUp, tickPowerUps, type ActivePowerUps } from './powerups';
+import { createPowerUps, activatePowerUp, tickPowerUps, consumeHoverboard, type ActivePowerUps } from './powerups';
 import { hitsObstacle, coinDistanceSq, COIN_PICKUP_RADIUS } from './collision';
-import { MAGNET_RADIUS } from '../config/tuning';
-import { START_SPEED } from '../config/tuning';
+import { MAGNET_RADIUS, START_SPEED } from '../config/tuning';
 import { speedAt, difficultyAt } from './difficulty';
-import { playerLaneX } from './player';
 import type { PowerUpKind, CoinSpec, ObstacleSpec, PowerUpSpec } from './types';
 import type { UiHandle, GameSnapshot } from '../ui/screens';
 
@@ -44,7 +42,6 @@ export class Game {
     const gen = new TrackGenerator(new Rng(1));
     this.track = new TrackManager(this.scene.app, this.scene.app.root, gen, defaultPopulate);
     this.track.update(0);
-    // input
     const keyHandler = (e: KeyboardEvent) => {
       if (this.phase !== 'running') return;
       if (e.key === 'ArrowLeft') requestLane(this.player, -1);
@@ -54,7 +51,6 @@ export class Game {
     };
     window.addEventListener('keydown', keyHandler);
     this.unsubs.push(() => window.removeEventListener('keydown', keyHandler));
-    // render subscription
     const h = this.scene.app.on('update', (dt: number) => this.update(dt));
     this.unsubs.push(() => h.off());
   }
@@ -63,6 +59,7 @@ export class Game {
     this.resetRun();
     this.phase = 'running';
     this.ui.show('hud');
+    this.ui.update(this.snapshot());
   }
 
   pause(): void {
@@ -78,6 +75,7 @@ export class Game {
     this.resetRun();
     this.phase = 'running';
     this.ui.show('hud');
+    this.ui.update(this.snapshot());
   }
 
   private resetRun(): void {
@@ -98,9 +96,9 @@ export class Game {
       while (this.acc >= FIXED_DT) {
         this.step(FIXED_DT);
         this.acc -= FIXED_DT;
+        if (this.phase !== 'running') break;
       }
     }
-    // render
     this.scene.character.update(this.player, this.distance, dt);
     this.scene.setCameraTarget(playerLaneX(this.player), difficultyAt(this.elapsed));
   }
@@ -108,49 +106,36 @@ export class Game {
   private step(dt: number): void {
     const speed = speedAt(this.elapsed);
     const prevZ = -this.distance;
-    // tick powerups
     const jp = tickPowerUps(this.powerUps, dt);
     if (jp.jetpackEnded) {
-      // end jetpack descent
-      // powerups doesn't call player; handle via player? player.jetpack still true
+      endJetpack(this.player);
     }
-    // Actually player jetpack handling: if powerup jetpack ended, end jetpack
-    // We'll manage player.jetpack separately? Player has jetpack flag set by powerup activation? 
-    // Simplify: if powerUps.jetpack>0 keep player.jetpack true
     if (this.powerUps.jetpack > 0 && !this.player.jetpack) {
-      // activate jetpack on player
-      // import startJetpack
+      startJetpack(this.player);
     }
-    // mirror invulnerable
     this.player.invulnerable = Math.max(this.player.invulnerable, this.powerUps.invulnerable);
 
-    // handle jetpack start/end via powerup
-    // We'll track previous jetpack timer
-    // For now basic: set player.jetpack based on timer
-    // (startJetpack/endJetpack imported)
-    // Omitted complex; keep functional enough for e2e
-
     updatePlayer(this.player, dt);
-    // track update
     this.track.update(this.distance);
 
-    // collisions & pickups
     const playerZ = -this.distance;
     const previousPlayerZ = prevZ;
-    // jetpack activation from powerup pickup handled in pickup loop
+
     for (const chunk of this.track.chunks) {
       const pattern = chunk.pattern;
-      // obstacles
       for (const obs of pattern.obstacles) {
         const key = `o:${chunk.index}:${obs.z}`;
         if (this.collected.has(key)) continue;
         const worldZ = -(chunk.startZ + obs.z);
         if (hitsObstacle(this.player, playerZ, previousPlayerZ, obs, worldZ)) {
+          if (this.powerUps.hoverboard && consumeHoverboard(this.powerUps)) {
+            this.collected.add(key);
+            continue;
+          }
           this.crash();
           return;
         }
       }
-      // coins
       for (const coin of pattern.coins) {
         const key = `c:${chunk.index}:${coin.z}:${coin.lane}`;
         if (this.collected.has(key)) continue;
@@ -163,54 +148,37 @@ export class Game {
           addCoin(this.score);
         }
       }
-      // powerups
       for (const pu of pattern.powerUps) {
         const key = `p:${chunk.index}:${pu.z}:${pu.kind}`;
         if (this.collected.has(key)) continue;
         const puWorldZ = -(chunk.startZ + pu.z);
-        // simple distance
-        const dx = playerLaneX(this.player) - (pu.lane * 2.5);
+        const puX = pu.lane * 2.5;
+        const dx = playerLaneX(this.player) - puX;
         const dz = playerZ - puWorldZ;
         if (Math.hypot(dx, dz) <= 2) {
           this.collected.add(key);
           activatePowerUp(this.powerUps, pu.kind);
           if (pu.kind === 'jetpack') {
-            // start jetpack on player
-            // import
+            startJetpack(this.player);
           }
         }
       }
     }
 
-    // score
     this.score.multiplier = this.powerUps.multiplier > 0 ? 2 : 1;
     tickScore(this.score, speed * dt);
     this.distance += speed * dt;
     this.elapsed += dt;
 
-    // jetpack player sync
-    if (this.powerUps.jetpack > 0) {
-      if (!this.player.jetpack) {
-        // start
-        this.player.jetpack = true;
-        this.player.y = 4.5;
-        this.player.vy = 0;
-        this.player.airborne = false;
-      }
-    } else {
-      if (this.player.jetpack) {
-        this.player.jetpack = false;
-        this.player.y = 4.5 - 0.9;
-        this.player.descentRemaining = 0.6;
-        this.player.invulnerable = Math.max(this.player.invulnerable, 0.6 + 0.2);
-      }
-    }
+    this.ui.update(this.snapshot());
   }
 
   private crash(): void {
     this.phase = 'gameover';
     saveBestScore(totalScore(this.score));
+    this.best = loadBestScore();
     this.ui.show('gameover');
+    this.ui.update(this.snapshot());
   }
 
   snapshot(): GameSnapshot {
@@ -228,13 +196,15 @@ export class Game {
     };
   }
 
-  debugAddCoins(n: number): void { this.score.coins += n; }
-  debugActivatePowerUp(kind: PowerUpKind): void { activatePowerUp(this.powerUps, kind); }
+  debugAddCoins(n: number): void { this.score.coins += n; this.ui.update(this.snapshot()); }
+  debugActivatePowerUp(kind: PowerUpKind): void { activatePowerUp(this.powerUps, kind); if (kind === 'jetpack') startJetpack(this.player); this.ui.update(this.snapshot()); }
   debugPlayerLane(): number { return this.player.lane; }
   debugEndRun(): void {
     this.phase = 'gameover';
     saveBestScore(totalScore(this.score));
+    this.best = loadBestScore();
     this.ui.show('gameover');
+    this.ui.update(this.snapshot());
   }
 
   dispose(): void {

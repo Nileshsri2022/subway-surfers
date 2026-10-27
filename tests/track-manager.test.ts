@@ -22,17 +22,17 @@ describe('TrackManager', () => {
     expect(tm.chunks.map((c) => c.index)).toEqual([0, 1, 2, 3, 4]);
   });
 
-  it('update(200) keeps 6..11 and drops chunks below 180', () => {
+  it('update(200) keeps 5..11 and drops chunks below 150', () => {
     const { tm } = makeManager();
     tm.update(0);
     tm.update(200);
-    expect(tm.chunks.map((c) => c.index)).toEqual([6, 7, 8, 9, 10, 11]);
+    expect(tm.chunks.map((c) => c.index)).toEqual([5, 6, 7, 8, 9, 10, 11]);
     for (const c of tm.chunks) {
-      expect(c.startZ).toBeGreaterThanOrEqual(180);
+      expect(c.startZ).toBeGreaterThanOrEqual(150);
     }
   });
 
-  it('places each chunk root at z = -startZ', () => {
+  it('places each chunk root at z = distance - startZ', () => {
     const { root, tm } = makeManager();
     tm.update(0);
     const roots = root.children;
@@ -40,6 +40,14 @@ describe('TrackManager', () => {
     for (let i = 0; i < tm.chunks.length; i++) {
       const chunk = tm.chunks[i];
       const entity = roots.find((e) => e.getLocalPosition().z === -chunk.startZ);
+      expect(entity).toBeDefined();
+    }
+    // Scrolling: at distance 200 every live root has ridden +200.
+    tm.update(200);
+    for (const chunk of tm.chunks) {
+      const entity = root.children.find(
+        (e) => e.getLocalPosition().z === 200 - chunk.startZ
+      );
       expect(entity).toBeDefined();
     }
   });

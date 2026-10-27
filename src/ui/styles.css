@@ -8,3 +8,17 @@ html, body { margin: 0; }
 canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 body { overscroll-behavior: none; user-select: none; -webkit-user-select: none; }
 #ui-root { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+
+/* HUD + screens: the old stylesheet had no game styling at all, so the HUD
+   rendered as raw text and default browser buttons. */
+.hud { align-items: center; gap: 12px; padding: 12px 16px; font-family: system-ui, sans-serif; }
+.hud .score, .hud .coins { color: #fff; font-weight: 800; font-size: 22px; text-shadow: 0 2px 4px rgba(0,0,0,.6); }
+.hud .coins::before { content: '● '; color: #ffcf3d; }
+.hud button { border: none; border-radius: 999px; background: rgba(0,0,0,.55); color: #fff; font-weight: 700; padding: 10px 18px; cursor: pointer; }
+.screen { flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(0,0,0,.35); font-family: system-ui, sans-serif; }
+.screen h1 { color: #fff; font-size: 56px; margin: 0; text-shadow: 0 4px 0 rgba(0,0,0,.35); letter-spacing: 1px; }
+.screen h2 { color: #fff; font-size: 40px; margin: 0; text-shadow: 0 3px 0 rgba(0,0,0,.35); }
+.screen p { color: #fff; font-size: 20px; font-weight: 700; margin: 0; }
+.screen button { border: none; border-radius: 14px; background: #ffcf3d; color: #231a00; font-size: 22px; font-weight: 800; padding: 14px 36px; cursor: pointer; }
+.powerups { display: flex; gap: 8px; }
+.powerup-chip { background: rgba(0,0,0,.55); color: #fff; border-radius: 999px; padding: 6px 12px; font-weight: 700; font-size: 14px; }

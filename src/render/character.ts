@@ -1,6 +1,6 @@
 import * as pc from 'playcanvas';
 import { playerCenterY, playerHalfHeight, playerLaneX, type PlayerState } from '../game/player';
-import { createBox, createMaterial } from './meshes';
+import { createBox, createMaterial, setSubtreeShadows } from './meshes';
 
 export interface CharacterRig {
   root: pc.Entity;
@@ -75,6 +75,7 @@ const SHIRT_COLOR = new pc.Color(0.2, 0.55, 0.62);
 const PANTS_COLOR = new pc.Color(0.16, 0.2, 0.3);
 const SKIN_COLOR = new pc.Color(0.78, 0.58, 0.44);
 const ACCENT_COLOR = new pc.Color(0.9, 0.45, 0.2);
+const SHOE_COLOR = new pc.Color(0.95, 0.95, 0.93);
 
 // Scratch position: `update` runs every frame and must not create PlayCanvas objects.
 const scratchPosition = new pc.Vec3();
@@ -123,16 +124,25 @@ export function createCharacter(app: pc.Application): CharacterRig {
 
   createBox(torsoPivot, 'cap', CAP_SIZE, accentMaterial).setLocalPosition(0, CAP_Y - HIP_Y, 0);
 
+  // Brim sticking forward (-z, the run direction); the old cap was a
+  // featureless slab. White sneakers; the old feet were bare leg ends.
+  createBox(torsoPivot, 'cap-brim', [0.42, 0.05, 0.3], accentMaterial).setLocalPosition(
+    0,
+    CAP_Y - HIP_Y + 0.03,
+    -0.28
+  );
+
   createBox(torsoPivot, 'backpack', BACKPACK_SIZE, accentMaterial).setLocalPosition(
     0,
     BACKPACK_Y - HIP_Y,
     BACKPACK_Z
   );
 
+  const shoeMaterial = createMaterial(SHOE_COLOR);
   const leftArmPivot = new pc.Entity('arm-pivot-left');
   leftArmPivot.setLocalPosition(-ARM_X, SHOULDER_Y - HIP_Y, 0);
   torsoPivot.addChild(leftArmPivot);
-  createBox(leftArmPivot, 'arm-left', ARM_SIZE, skinMaterial).setLocalPosition(
+  createBox(leftArmPivot, 'arm-left', ARM_SIZE, shirtMaterial).setLocalPosition(
     0,
     -ARM_LENGTH / 2,
     0
@@ -141,7 +151,7 @@ export function createCharacter(app: pc.Application): CharacterRig {
   const rightArmPivot = new pc.Entity('arm-pivot-right');
   rightArmPivot.setLocalPosition(ARM_X, SHOULDER_Y - HIP_Y, 0);
   torsoPivot.addChild(rightArmPivot);
-  createBox(rightArmPivot, 'arm-right', ARM_SIZE, skinMaterial).setLocalPosition(
+  createBox(rightArmPivot, 'arm-right', ARM_SIZE, shirtMaterial).setLocalPosition(
     0,
     -ARM_LENGTH / 2,
     0
@@ -155,6 +165,11 @@ export function createCharacter(app: pc.Application): CharacterRig {
     -LEG_LENGTH / 2,
     0
   );
+  createBox(leftLegPivot, 'shoe-left', [0.2, 0.12, 0.34], shoeMaterial).setLocalPosition(
+    0,
+    -LEG_LENGTH + 0.04,
+    -0.03
+  );
 
   const rightLegPivot = new pc.Entity('leg-pivot-right');
   rightLegPivot.setLocalPosition(LEG_X, LEG_Y, 0);
@@ -164,6 +179,13 @@ export function createCharacter(app: pc.Application): CharacterRig {
     -LEG_LENGTH / 2,
     0
   );
+  createBox(rightLegPivot, 'shoe-right', [0.2, 0.12, 0.34], shoeMaterial).setLocalPosition(
+    0,
+    -LEG_LENGTH + 0.04,
+    -0.03
+  );
+
+  setSubtreeShadows(root, true, false);
 
   let disposed = false;
 

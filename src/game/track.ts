@@ -5,7 +5,7 @@ import * as pc from 'playcanvas';
 import { TRACK_CHUNK_LENGTH, SPAWN_AHEAD, DESPAWN_BEHIND } from '../config/tuning';
 import { PATTERNS, isPatternSurvivable } from './patterns';
 import type { Rng } from './rng';
-import type { Pattern, ObstacleSpec, CoinSpec, PowerUpSpec } from './types';
+import type { Pattern, ObstacleSpec, CoinSpec, PowerUpSpec, Lane } from './types';
 import { laneToX } from './lanes';
 import { EntityPool } from '../render/pool';
 import { createCityChunk } from '../render/city';
@@ -88,8 +88,21 @@ export class TrackManager {
     return this._chunks;
   }
 
+  // Coins spin around the vertical axis; static discs read as flat tokens.
+  // Coins are direct children of live chunk roots, named 'coin'.
+  updateCoins(time: number): void {
+    const angle = (time * 150) % 360;
+    for (const root of this.live.values()) {
+      for (const child of root.children) {
+        if (child.name === 'coin') {
+          child.setLocalEulerAngles(90, angle, 0);
+        }
+      }
+    }
+  }
+
   update(distance: number): void {
-    const startIdx = Math.floor((distance - DESPAWN_BEHIND) / TRACK_CHUNK_LENGTH);
+    const startIdx = Math.floor((distance - DESPAWN_BEHIND - TRACK_CHUNK_LENGTH) / TRACK_CHUNK_LENGTH);
     const clampedStart = Math.max(0, startIdx);
     const endIdx = Math.ceil((distance + SPAWN_AHEAD) / TRACK_CHUNK_LENGTH);
 
@@ -100,25 +113,52 @@ export class TrackManager {
         const root = this.pool.acquire();
         root.enabled = true;
         this.createChunk(chunk, root);
-        root.setPosition(0, 0, -chunk.startZ);
         this.root.addChild(root);
         this.live.set(i, root);
         if (!this._chunks.find(c => c.index === i)) this._chunks.push(chunk);
       }
     }
-    // despawn behind
+    // despawn behind: only once the chunk's far edge (30 m past its
+    // start) is behind the player by the margin, or its tail would pop
+    // out while still ahead of the camera.
     for (const [idx, root] of [...this.live.entries()]) {
       const chunk = this._chunks.find(c => c.index === idx);
       const startZ = chunk ? chunk.startZ : idx * TRACK_CHUNK_LENGTH;
-      if (startZ < distance - DESPAWN_BEHIND - 0.001) {
+      if (startZ + TRACK_CHUNK_LENGTH < distance - DESPAWN_BEHIND - 0.001) {
         this.pool.release(root);
         root.parent?.removeChild(root);
         this.live.delete(idx);
         this._chunks = this._chunks.filter(c => c.index !== idx);
       }
     }
+    // Scroll: the player stays at z = 0 and the world rides toward the
+    // camera. The old code positioned each chunk once at -startZ, so the
+    // whole world stood still and the runner ran in place. With the
+    // +distance offset an obstacle's visual z hits 0 exactly when the
+    // logical collision fires (worldZ = -(startZ + z)).
+    for (const [idx, root] of this.live.entries()) {
+      const chunk = this._chunks.find(c => c.index === idx);
+      const startZ = chunk ? chunk.startZ : idx * TRACK_CHUNK_LENGTH;
+      root.setPosition(0, 0, distance - startZ);
+    }
     // ensure sorted
     this._chunks.sort((a, b) => a.index - b.index);
+  }
+
+  // Hide one collected/pickup/consumed child entity by name + lane + z, so
+  // it vanishes at pickup instead of scrolling past the player untouched.
+  hideAt(chunkIndex: number, name: string, lane: Lane, z: number): void {
+    const root = this.live.get(chunkIndex);
+    if (!root) return;
+    const x = laneToX(lane);
+    for (const child of root.children) {
+      if (child.name !== name) continue;
+      const p = child.getLocalPosition();
+      if (Math.abs(p.x - x) < 0.01 && Math.abs(p.z + z) < 0.01) {
+        child.enabled = false;
+        return;
+      }
+    }
   }
 
   dispose(): void {

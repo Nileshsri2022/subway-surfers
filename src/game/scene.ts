@@ -1,7 +1,7 @@
 import * as pc from 'playcanvas';
 import { START_SPEED } from '../config/tuning';
 import { createCharacter, type CharacterRig } from '../render/character';
-import { createBox, createMaterial } from '../render/meshes';
+import { createBox, createMaterial, setShadows } from '../render/meshes';
 import { createPlayerState } from './player';
 
 export interface SceneHandle {
@@ -14,17 +14,21 @@ export interface SceneHandle {
   dispose(): void;
 }
 
-const SKY_COLOR = new pc.Color(0.55, 0.72, 0.9);
-const AMBIENT_COLOR = new pc.Color(0.35, 0.4, 0.48);
-const ASPHALT_COLOR = new pc.Color(0.16, 0.17, 0.19);
-const KEY_LIGHT_COLOR = new pc.Color(1, 0.95, 0.86);
+// Warm sunset palette (was flat midday blue): the sky, fog, and sun all
+// pull warm so the scene reads as golden-hour, not overcast noon.
+const SKY_COLOR = new pc.Color(0.98, 0.72, 0.45);
+const AMBIENT_COLOR = new pc.Color(0.45, 0.4, 0.36);
+const ASPHALT_COLOR = new pc.Color(0.18, 0.17, 0.16);
+const KEY_LIGHT_COLOR = new pc.Color(1, 0.85, 0.62);
 const FILL_LIGHT_COLOR = new pc.Color(0.72, 0.8, 0.95);
 
+// Camera closer and lower (was y 4.2 / z 8): the runner was ~12% of frame
+// height; at y 3.1 / z 6.2 it fills ~25%, like the reference game.
 const CAMERA_X = 0;
-const CAMERA_Y = 4.2;
-const CAMERA_Z = 8;
+const CAMERA_Y = 3.1;
+const CAMERA_Z = 6.2;
 const CAMERA_TARGET_X = 0;
-const CAMERA_TARGET_Y = 1;
+const CAMERA_TARGET_Y = 1.15;
 const CAMERA_TARGET_Z = -12;
 const CAMERA_FOV = 60;
 const CAMERA_FAST_FOV = 68;
@@ -75,14 +79,19 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
   camera.lookAt(scratchTarget);
 
   const keyLight = new pc.Entity('key-light');
-  keyLight.addComponent('light', {
+  const keyComp = keyLight.addComponent('light', {
     type: 'directional',
     color: KEY_LIGHT_COLOR,
-    intensity: 1.2,
-    castShadows: false,
+    intensity: 1.3,
+    castShadows: true,
+    shadowBias: -0.0005,
+    shadowDistance: 70,
   });
+  if (keyComp) {
+    keyComp.shadowResolution = 1024;
+  }
   app.root.addChild(keyLight);
-  keyLight.setPosition(5, 10, 5);
+  keyLight.setPosition(6, 9, 4);
   keyLight.lookAt(0, 0, 0);
 
   const fillLight = new pc.Entity('fill-light');
@@ -103,6 +112,7 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
     createMaterial(ASPHALT_COLOR)
   );
   ground.setPosition(0, -0.05, GROUND_CENTER_Z);
+  setShadows(ground, false, true);
 
   const character = createCharacter(app);
   const playerRoot = character.root;

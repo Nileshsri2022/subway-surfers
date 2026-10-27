@@ -35,6 +35,7 @@ export class Game {
   phase: GamePhase = 'menu';
   collected = new Set<string>();
   private acc = 0;
+  private coinTime = 0;
   private unsubs: Array<() => void> = [];
 
   constructor(canvas: HTMLCanvasElement, ui: UiHandle, input?: InputBuffer, audio?: AudioEngine) {
@@ -115,6 +116,8 @@ export class Game {
     }
     this.scene.character.update(this.player, this.distance, dt);
     this.scene.setCameraTarget(playerLaneX(this.player), difficultyAt(this.elapsed));
+    this.coinTime += dt;
+    this.track.updateCoins(this.coinTime);
     this.fx.update(dt);
   }
 
@@ -145,6 +148,7 @@ export class Game {
         if (hitsObstacle(this.player, playerZ, previousPlayerZ, obs, worldZ)) {
           if (this.powerUps.hoverboard && consumeHoverboard(this.powerUps)) {
             this.collected.add(key);
+            this.track.hideAt(chunk.index, `obstacle-${obs.kind}`, obs.lane, obs.z);
             continue;
           }
           this.crash();
@@ -159,6 +163,7 @@ export class Game {
         const d2 = coinDistanceSq(this.player, playerZ, coin, coinWorldZ);
         if (d2 <= r * r) {
           this.collected.add(key);
+          this.track.hideAt(chunk.index, 'coin', coin.lane, coin.z);
           this.score.coins += 1;
           addCoin(this.score);
           this.audio.play('coin');
@@ -174,6 +179,7 @@ this.fx.burst('coin', playerLaneX(this.player), 1, -this.distance);
         const dz = playerZ - puWorldZ;
         if (Math.hypot(dx, dz) <= 2) {
           this.collected.add(key);
+          this.track.hideAt(chunk.index, `powerup-${pu.kind}`, pu.lane, pu.z);
           activatePowerUp(this.powerUps, pu.kind);
           if (pu.kind === 'jetpack') {
             startJetpack(this.player);

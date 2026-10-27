@@ -1,32 +1,42 @@
 # Subway Runner
 
-An original 3D endless-runner game for the browser, built with TypeScript and the PlayCanvas Engine.
+An original 3D endless-runner web game. Play in the browser on desktop or mobile.
 
-## Requirements
-
-- [Bun](https://bun.sh/) 1.4 or newer
-- A WebGL2-capable browser
-
-## Getting started
+## Install
 
 ```bash
 bun install
+```
+
+## Dev
+
+```bash
 bun run dev
 ```
 
-Vite prints the local URL (default `http://localhost:5173`).
+## Test
 
-## Scripts
+```bash
+bun run test          # unit tests (Vitest)
+bun run test:e2e      # Playwright e2e (builds first)
+```
 
-| Command | Purpose |
-| --- | --- |
-| `bun run dev` | Start the Vite dev server |
-| `bun run build` | Typecheck, then build static files into `dist/` |
-| `bun run preview` | Serve the production build locally |
-| `bun run test` | Run unit tests with Vitest |
-| `bun run typecheck` | Typecheck with `tsc --noEmit` |
-| `bun run test:e2e` | Run Playwright end-to-end tests |
+## Build
 
-## Deployment
+```bash
+bun run build         # tsc --noEmit && vite build -> dist/
+bun run preview       # preview the production build
+```
 
-`bun run build` emits a static site in `dist/` that can be hosted on any static file host.
+## Deploy
+
+Static hosting: upload the `dist/` directory to any static host (GitHub Pages, Netlify, Vercel, Cloudflare Pages). The app is a PWA and works offline after the first load.
+
+## Controls
+
+- Desktop: ArrowLeft/ArrowRight (or A/D) change lanes, ArrowUp/W/Space jump, ArrowDown/S roll.
+- Mobile: swipe left/right to change lanes, swipe up to jump, swipe down to roll.
+
+## Browser support
+
+Chrome, Edge, Firefox, Safari (desktop); iOS Safari and Android Chrome. WebGL required.

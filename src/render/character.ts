@@ -18,12 +18,12 @@ export interface RunPose {
 const scratchPose: RunPose = { armSwing: 0, legSwing: 0, bob: 0 };
 
 // Pure run cycle shared by the rig, later gameplay work and audio.
-export function runPose(distance: number): RunPose;
-export function runPose(distance: number, out: RunPose): RunPose;
-export function runPose(
-  distance: number,
-  out: RunPose = { armSwing: 0, legSwing: 0, bob: 0 }
-): RunPose {
+export function runPose(distance: number): RunPose {
+  return writeRunPose(distance, { armSwing: 0, legSwing: 0, bob: 0 });
+}
+
+// Module-private scratch-writing variant so the rig's update path allocates nothing.
+function writeRunPose(distance: number, out: RunPose): RunPose {
   const armSwing = Math.sin(distance * 2.2);
   out.armSwing = armSwing;
   out.legSwing = -armSwing;
@@ -34,7 +34,7 @@ export function runPose(
 // Rig proportions, in metres, with the root at the runner's feet.
 const TORSO_Y = 1.0;
 const TORSO_SIZE: [number, number, number] = [0.58, 0.86, 0.36];
-const HEAD_Y = 1.62;
+const HEAD_Y = 1.65;
 const HEAD_DIAMETER = 0.38;
 const CAP_Y = 1.79;
 const CAP_SIZE: [number, number, number] = [0.46, 0.1, 0.46];
@@ -59,8 +59,10 @@ const JUMP_ARM_DEGREES = -130;
 const JUMP_LEG_DEGREES = 75;
 
 const ROLL_HEIGHT_SCALE = 0.55;
-const ROLL_TORSO_DEGREES = 55;
-const ROLL_BODY_DROP = 0.22;
+const ROLL_TORSO_DEGREES = -55;
+// Squashed and tilted -55°, the lowest torso corner sits near y = 0.31 in root
+// space, so lower the body group by that amount to keep the roll on the track.
+const ROLL_BODY_DROP = -0.31;
 const ROLL_ARM_DEGREES = 60;
 const ROLL_LEG_DEGREES = 105;
 
@@ -170,8 +172,10 @@ export function createCharacter(app: pc.Application): CharacterRig {
       return;
     }
 
-    const pose = runPose(distance, scratchPose);
-    const grounded = !state.airborne && !state.rolling && !state.jetpack;
+    const pose = writeRunPose(distance, scratchPose);
+    const descending = state.descentRemaining > 0;
+    const grounded =
+      !state.airborne && !state.rolling && !state.jetpack && !descending;
     const bob = grounded ? pose.bob : 0;
 
     scratchPosition.set(
@@ -220,7 +224,7 @@ export function createCharacter(app: pc.Application): CharacterRig {
       return;
     }
 
-    if (state.airborne) {
+    if (state.airborne || descending) {
       leftArmPivot.setLocalEulerAngles(JUMP_ARM_DEGREES, 0, 0);
       rightArmPivot.setLocalEulerAngles(JUMP_ARM_DEGREES, 0, 0);
       leftLegPivot.setLocalEulerAngles(JUMP_LEG_DEGREES, 0, 0);

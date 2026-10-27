@@ -11,4 +11,11 @@ describe('runPose', () => {
       expect(pose.bob).toBeLessThan(0.1);
     }
   });
+
+  it('matches the expected phase at a quarter turn', () => {
+    const pose = runPose(Math.PI / (2 * 2.2));
+    expect(pose.armSwing).toBeCloseTo(1, 10);
+    expect(pose.legSwing).toBeCloseTo(-1, 10);
+    expect(pose.bob).toBeCloseTo(0.05, 10);
+  });
 });

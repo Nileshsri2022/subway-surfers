@@ -77,8 +77,8 @@ export function boxesOverlap(a: Box, b: Box): boolean {
 }
 
 // Anti-tunneling: widen the obstacle by the distance the player moved this step.
-export function sweepsOverlap(a: Box, previousZ: number, b: Box): boolean {
-  return overlaps(a, b, Math.abs(a.cz - previousZ));
+export function sweepsOverlap(player: Box, previousZ: number, obstacle: Box): boolean {
+  return overlaps(player, obstacle, Math.abs(player.cz - previousZ));
 }
 
 const playerScratch = newBox();

@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { createPlayerState, requestJump, requestRoll, startJetpack, updatePlayer } from '../src/game/player';
-import { boxesOverlap, coinDistanceSq, hitsObstacle, sweepsOverlap, playerBox, obstacleBox } from '../src/game/collision';
+import {
+  boxesOverlap,
+  coinDistanceSq,
+  COIN_PICKUP_RADIUS,
+  hitsObstacle,
+  obstacleBox,
+  playerBox,
+  sweepsOverlap,
+} from '../src/game/collision';
 import type { ObstacleSpec } from '../src/game/types';
 
 const train = (lane: 0 | 1 | -1): ObstacleSpec => ({ kind: 'train', lane, z: 0, length: 8 });
@@ -30,12 +38,13 @@ describe('collision', () => {
   });
 
   it('ignores collisions during jetpack and invulnerability', () => {
-    const s = createPlayerState();
-    startJetpack(s);
-    expect(hitsObstacle(s, -4, -3.5, train(0), -4)).toBe(false);
-    s.jetpack = false;
-    s.invulnerable = 1;
-    expect(hitsObstacle(s, -4, -3.5, train(0), -4)).toBe(false);
+    const flying = createPlayerState();
+    startJetpack(flying);
+    expect(hitsObstacle(flying, -4, -3.5, train(0), -4)).toBe(false);
+
+    const invulnerable = createPlayerState();
+    invulnerable.invulnerable = 1;
+    expect(hitsObstacle(invulnerable, -4, -3.5, train(0), -4)).toBe(false);
   });
 
   it('sweeps thin obstacles at 0.5 metres per frame', () => {
@@ -50,12 +59,64 @@ describe('collision', () => {
     expect(coinDistanceSq(s, -4, { lane: 1, z: 0, y: 0.9 }, -4)).toBeGreaterThan(4);
   });
 
-  it('catches a 1 m barrier skipped by a 0.5 m max-speed step (tunneling regression)', () => {
+  it('exports the coin pickup radius and includes a coin exactly at the threshold', () => {
+    const s = createPlayerState();
+    const thresholdSq = COIN_PICKUP_RADIUS ** 2;
+    expect(COIN_PICKUP_RADIUS).toBeCloseTo(0.85, 12);
+
+    const atThreshold = coinDistanceSq(s, -4, { lane: 0, z: 0, y: 0.9 - COIN_PICKUP_RADIUS }, -4);
+    expect(atThreshold).toBe(thresholdSq);
+    expect(atThreshold).toBeLessThanOrEqual(thresholdSq);
+
+    const beyond = coinDistanceSq(s, -4, { lane: 0, z: 0, y: 0.9 - COIN_PICKUP_RADIUS - 1e-6 }, -4);
+    expect(beyond).toBeGreaterThan(thresholdSq);
+  });
+
+  it('hits a train while jumping', () => {
+    const s = createPlayerState();
+    requestJump(s);
+    updatePlayer(s, 0.3);
+    expect(hitsObstacle(s, -4, -3.5, train(0), -4)).toBe(true);
+  });
+
+  it('hits an overhead barrier while jumping', () => {
+    const s = createPlayerState();
+    requestJump(s);
+    updatePlayer(s, 0.3);
+    expect(hitsObstacle(s, -4, -3.5, overhead(0), -4)).toBe(true);
+  });
+
+  it('hits a train while rolling', () => {
+    const s = createPlayerState();
+    requestRoll(s);
+    expect(hitsObstacle(s, -4, -3.5, train(0), -4)).toBe(true);
+  });
+
+  it('hits a low barrier while rolling', () => {
+    const s = createPlayerState();
+    requestRoll(s);
+    expect(hitsObstacle(s, -4, -3.5, low(0), -4)).toBe(true);
+  });
+
+  it('reports a near miss up to half a step early under symmetric expansion', () => {
     const s = createPlayerState();
     const z = -4;
     const previousZ = -3.5; // 0.5 m in one 60 Hz frame at 30 m/s
     const spec = low(0);
     const worldZ = -4.6; // near edge sits just beyond the end-of-step player box
+
+    // Deliberately conservative: symmetric expansion can report a hit up to half a
+    // step early (~0.25 m at 30 m/s, one 60 Hz frame) rather than a pass-through.
+    expect(boxesOverlap(playerBox(s, z), obstacleBox(spec, worldZ))).toBe(false);
+    expect(hitsObstacle(s, z, previousZ, spec, worldZ)).toBe(true);
+  });
+
+  it('catches a barrier crossed entirely within one step (tunneling regression)', () => {
+    const s = createPlayerState();
+    const previousZ = 1.0;
+    const z = -1.5;
+    const spec = low(0);
+    const worldZ = 1; // barrier box [0, 1]; end-of-step player box [-2, -1]
 
     expect(boxesOverlap(playerBox(s, z), obstacleBox(spec, worldZ))).toBe(false);
     expect(hitsObstacle(s, z, previousZ, spec, worldZ)).toBe(true);

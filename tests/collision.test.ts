@@ -98,26 +98,29 @@ describe('collision', () => {
     expect(hitsObstacle(s, -4, -3.5, low(0), -4)).toBe(true);
   });
 
-  it('reports a near miss up to half a step early under symmetric expansion', () => {
+  it('reports a near miss up to one full step early under symmetric expansion', () => {
     const s = createPlayerState();
     const z = -4;
     const previousZ = -3.5; // 0.5 m in one 60 Hz frame at 30 m/s
     const spec = low(0);
     const worldZ = -4.6; // near edge sits just beyond the end-of-step player box
 
-    // Deliberately conservative: symmetric expansion can report a hit up to half a
-    // step early (~0.25 m at 30 m/s, one 60 Hz frame) rather than a pass-through.
+    // Deliberately conservative: symmetric expansion can register a hit up to one full
+    // step early (0.5 m at 30 m/s, i.e. a single 60 Hz frame) rather than a pass-through.
     expect(boxesOverlap(playerBox(s, z), obstacleBox(spec, worldZ))).toBe(false);
     expect(hitsObstacle(s, z, previousZ, spec, worldZ)).toBe(true);
   });
 
-  it('catches a barrier crossed entirely within one step (tunneling regression)', () => {
+  it('catches a barrier crossed entirely between two samples (tunneling regression)', () => {
     const s = createPlayerState();
-    const previousZ = 1.0;
+    const previousZ = 2.0;
     const z = -1.5;
     const spec = low(0);
-    const worldZ = 1; // barrier box [0, 1]; end-of-step player box [-2, -1]
+    const worldZ = 1; // barrier box [0, 1]
 
+    // Start player box [1.5, 2.5] and end player box [-2, -1] are both disjoint
+    // from the barrier; the 3.5 m step passes over it entirely.
+    expect(boxesOverlap(playerBox(s, previousZ), obstacleBox(spec, worldZ))).toBe(false);
     expect(boxesOverlap(playerBox(s, z), obstacleBox(spec, worldZ))).toBe(false);
     expect(hitsObstacle(s, z, previousZ, spec, worldZ)).toBe(true);
   });

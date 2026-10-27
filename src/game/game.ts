@@ -9,6 +9,7 @@ import { hitsObstacle, coinDistanceSq, COIN_PICKUP_RADIUS } from './collision';
 import { MAGNET_RADIUS, START_SPEED } from '../config/tuning';
 import { speedAt, difficultyAt } from './difficulty';
 import type { PowerUpKind, CoinSpec, ObstacleSpec, PowerUpSpec } from './types';
+import { type InputBuffer } from './input';
 import type { UiHandle, GameSnapshot } from '../ui/screens';
 
 export type GamePhase = 'menu' | 'running' | 'paused' | 'gameover';
@@ -18,6 +19,7 @@ const FIXED_DT = 1 / 60;
 export class Game {
   canvas: HTMLCanvasElement;
   ui: UiHandle;
+  input?: InputBuffer;
   scene: SceneHandle;
   player: PlayerState;
   powerUps: ActivePowerUps;
@@ -31,9 +33,10 @@ export class Game {
   private acc = 0;
   private unsubs: Array<() => void> = [];
 
-  constructor(canvas: HTMLCanvasElement, ui: UiHandle) {
+  constructor(canvas: HTMLCanvasElement, ui: UiHandle, input?: InputBuffer) {
     this.canvas = canvas;
     this.ui = ui;
+    this.input = input;
     this.scene = createScene(canvas);
     this.player = createPlayerState();
     this.powerUps = createPowerUps();
@@ -42,15 +45,6 @@ export class Game {
     const gen = new TrackGenerator(new Rng(1));
     this.track = new TrackManager(this.scene.app, this.scene.app.root, gen, defaultPopulate);
     this.track.update(0);
-    const keyHandler = (e: KeyboardEvent) => {
-      if (this.phase !== 'running') return;
-      if (e.key === 'ArrowLeft') requestLane(this.player, -1);
-      else if (e.key === 'ArrowRight') requestLane(this.player, 1);
-      else if (e.key === 'ArrowUp' || e.key === ' ') requestJump(this.player);
-      else if (e.key === 'ArrowDown') requestRoll(this.player);
-    };
-    window.addEventListener('keydown', keyHandler);
-    this.unsubs.push(() => window.removeEventListener('keydown', keyHandler));
     const h = this.scene.app.on('update', (dt: number) => this.update(dt));
     this.unsubs.push(() => h.off());
   }
@@ -91,6 +85,13 @@ export class Game {
   }
 
   update(dt: number): void {
+    if (this.phase === 'running' && this.input) {
+      const action = this.input.consume(performance.now());
+      if (action === 'left') requestLane(this.player, -1);
+      else if (action === 'right') requestLane(this.player, 1);
+      else if (action === 'jump') requestJump(this.player);
+      else if (action === 'roll') requestRoll(this.player);
+    }
     if (this.phase === 'running') {
       this.acc += dt;
       while (this.acc >= FIXED_DT) {

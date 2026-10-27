@@ -8,6 +8,7 @@ import { createPowerUps, activatePowerUp, tickPowerUps, consumeHoverboard, type 
 import { hitsObstacle, coinDistanceSq, COIN_PICKUP_RADIUS } from './collision';
 import { MAGNET_RADIUS, START_SPEED } from '../config/tuning';
 import { speedAt, difficultyAt } from './difficulty';
+import { AudioEngine, type SoundName } from './audio';
 import type { PowerUpKind, CoinSpec, ObstacleSpec, PowerUpSpec } from './types';
 import { type InputBuffer } from './input';
 import type { UiHandle, GameSnapshot } from '../ui/screens';
@@ -20,6 +21,7 @@ export class Game {
   canvas: HTMLCanvasElement;
   ui: UiHandle;
   input?: InputBuffer;
+  audio: AudioEngine;
   scene: SceneHandle;
   player: PlayerState;
   powerUps: ActivePowerUps;
@@ -33,10 +35,11 @@ export class Game {
   private acc = 0;
   private unsubs: Array<() => void> = [];
 
-  constructor(canvas: HTMLCanvasElement, ui: UiHandle, input?: InputBuffer) {
+  constructor(canvas: HTMLCanvasElement, ui: UiHandle, input?: InputBuffer, audio?: AudioEngine) {
     this.canvas = canvas;
     this.ui = ui;
     this.input = input;
+    this.audio = audio ?? new AudioEngine();
     this.scene = createScene(canvas);
     this.player = createPlayerState();
     this.powerUps = createPowerUps();
@@ -47,6 +50,13 @@ export class Game {
     this.track.update(0);
     const h = this.scene.app.on('update', (dt: number) => this.update(dt));
     this.unsubs.push(() => h.off());
+    const unlock = () => this.audio.unlock();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    this.unsubs.push(() => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    });
   }
 
   start(): void {
@@ -89,8 +99,8 @@ export class Game {
       const action = this.input.consume(performance.now());
       if (action === 'left') requestLane(this.player, -1);
       else if (action === 'right') requestLane(this.player, 1);
-      else if (action === 'jump') requestJump(this.player);
-      else if (action === 'roll') requestRoll(this.player);
+      else if (action === 'jump') { requestJump(this.player); this.audio.play('jump'); }
+      else if (action === 'roll') { requestRoll(this.player); this.audio.play('roll'); }
     }
     if (this.phase === 'running') {
       this.acc += dt;
@@ -147,6 +157,7 @@ export class Game {
           this.collected.add(key);
           this.score.coins += 1;
           addCoin(this.score);
+          this.audio.play('coin');
         }
       }
       for (const pu of pattern.powerUps) {
@@ -162,6 +173,7 @@ export class Game {
           if (pu.kind === 'jetpack') {
             startJetpack(this.player);
           }
+          this.audio.play('powerup');
         }
       }
     }
@@ -178,6 +190,7 @@ export class Game {
     this.phase = 'gameover';
     saveBestScore(totalScore(this.score));
     this.best = loadBestScore();
+    this.audio.play('crash');
     this.ui.show('gameover');
     this.ui.update(this.snapshot());
   }

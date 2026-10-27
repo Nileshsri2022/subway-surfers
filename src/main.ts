@@ -3,6 +3,7 @@ import { APP_NAME } from './app-info';
 import { Game } from './game/game';
 import { InputBuffer, attachInput } from './game/input';
 import { mountUi } from './ui/screens';
+import { AudioEngine } from './game/audio';
 import './ui/styles.css';
 
 document.title = APP_NAME;
@@ -24,15 +25,18 @@ if (!window.__SUBWAY_RUNNER__?.ready) {
   if (!canvas) throw new Error('Missing #game-canvas element');
   if (!uiRoot) throw new Error('Missing #ui-root element');
 
+  const audio = new AudioEngine();
   const ui = mountUi(uiRoot, {
     onPlay: () => game?.start(),
     onRestart: () => game?.restart(),
     onPause: () => game?.pause(),
     onResume: () => game?.resume(),
+    onMuteToggle: () => audio.setMuted(!audio.isMuted()),
+    onSound: (name) => audio.play(name),
   });
   const buffer = new InputBuffer();
   attachInput(canvas, buffer, () => performance.now());
-  game = new Game(canvas, ui, buffer);
+  game = new Game(canvas, ui, buffer, audio);
 
   window.__SUBWAY_RUNNER__ = {
     ready: true,

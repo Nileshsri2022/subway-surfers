@@ -1,7 +1,8 @@
 export interface GameSnapshot { phase: string; score: number; coins: number; best: number; distance: number; powerUps: Array<{ kind: string; remaining: number }>; }
 export type GamePhase = 'menu'|'running'|'paused'|'gameover';
 
-export interface UiCallbacks { onPlay(): void; onRestart(): void; onPause(): void; onResume(): void; }
+import type { SoundName } from '../game/audio';
+export interface UiCallbacks { onPlay(): void; onRestart(): void; onPause(): void; onResume(): void; onMuteToggle(): void; onSound?(name: SoundName): void; }
 export interface UiHandle { show(screen: 'start'|'hud'|'pause'|'gameover'): void; update(snapshot: GameSnapshot): void; }
 
 export function mountUi(root: HTMLElement, callbacks: UiCallbacks): UiHandle {
@@ -9,7 +10,7 @@ export function mountUi(root: HTMLElement, callbacks: UiCallbacks): UiHandle {
   const start = document.createElement('div'); start.className = 'screen start';
   start.innerHTML = `<h1>Subway Runner</h1><p class="best">Best: <span data-best>0</span></p><button>Play</button>`;
   const hud = document.createElement('div'); hud.className = 'hud'; hud.setAttribute('data-testid','hud');
-  hud.innerHTML = `<span class="score">Score: <span data-score>0</span></span><span class="coins">Coins: <span data-testid="coin-count" data-coins>0</span></span><button>Pause</button><div class="powerups" data-powerups></div>`;
+  hud.innerHTML = `<span class="score">Score: <span data-score>0</span></span><span class="coins">Coins: <span data-testid="coin-count" data-coins>0</span></span><button>Pause</button><button data-mute>Mute</button><div class="powerups" data-powerups></div>`;
   const pause = document.createElement('div'); pause.className = 'screen pause'; pause.innerHTML = `<h2>Paused</h2><button>Resume</button>`;
   const gameover = document.createElement('div'); gameover.className = 'screen gameover';
   gameover.innerHTML = `<h2>Game Over</h2><p>Score: <span data-score>0</span></p><p>Best: <span data-best>0</span></p><button>Restart</button>`;
@@ -17,16 +18,20 @@ export function mountUi(root: HTMLElement, callbacks: UiCallbacks): UiHandle {
 
   const playBtn = start.querySelector('button')!;
   const pauseBtn = hud.querySelector('button')!;
+  const muteBtn = hud.querySelector('[data-mute]') as HTMLButtonElement;
   const resumeBtn = pause.querySelector('button')!;
   const restartBtn = gameover.querySelector('button')!;
   playBtn.textContent = 'Play';
   pauseBtn.textContent = 'Pause';
+  muteBtn.textContent = 'Mute';
   resumeBtn.textContent = 'Resume';
   restartBtn.textContent = 'Restart';
-  playBtn.addEventListener('click', callbacks.onPlay);
-  restartBtn.addEventListener('click', callbacks.onRestart);
-  pauseBtn.addEventListener('click', callbacks.onPause);
-  resumeBtn.addEventListener('click', callbacks.onResume);
+  const click = () => callbacks.onSound?.('click');
+  playBtn.addEventListener('click', () => { click(); callbacks.onPlay(); });
+  restartBtn.addEventListener('click', () => { click(); callbacks.onRestart(); });
+  pauseBtn.addEventListener('click', () => { click(); callbacks.onPause(); });
+  resumeBtn.addEventListener('click', () => { click(); callbacks.onResume(); });
+  muteBtn.addEventListener('click', () => { click(); callbacks.onMuteToggle(); });
 
   const powerupsContainer = hud.querySelector('[data-powerups]') as HTMLElement;
 

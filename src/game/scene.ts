@@ -10,6 +10,7 @@ export interface SceneHandle {
   playerRoot: pc.Entity;
   character: CharacterRig;
   setCameraTarget(x: number, speed01: number): void;
+  shake(intensity: number): void;
   dispose(): void;
 }
 
@@ -107,8 +108,14 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
   const playerRoot = character.root;
 
   let frameSeconds = 1 / 60;
+  let shakeIntensity = 0;
+  let shakeTimer = 0;
   const updateHandle = app.on('update', (dt: number) => {
     frameSeconds = dt;
+    if (shakeTimer > 0) {
+      shakeTimer = Math.max(0, shakeTimer - dt);
+      if (shakeTimer === 0) shakeIntensity = 0;
+    }
   });
 
   function setCameraTarget(x: number, speed01: number): void {
@@ -119,12 +126,23 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
     scratchPosition.x = pc.math.lerp(scratchPosition.x, x * 0.55, alpha);
     scratchPosition.y = CAMERA_Y;
     scratchPosition.z = CAMERA_Z;
+    if (shakeTimer > 0) {
+      const decay = shakeTimer / 0.25;
+      scratchPosition.x += (Math.random() - 0.5) * shakeIntensity * decay;
+      scratchPosition.y += (Math.random() - 0.5) * shakeIntensity * decay;
+    }
     camera.setPosition(scratchPosition);
 
     const cameraComponent = camera.camera;
     if (cameraComponent) {
       cameraComponent.fov = pc.math.lerp(CAMERA_FOV, CAMERA_FAST_FOV, speed);
     }
+    camera.setEulerAngles(0, 0, -x * 2);
+  }
+
+  function shake(intensity: number): void {
+    shakeIntensity = intensity;
+    shakeTimer = 0.25;
   }
 
   let disposed = false;
@@ -141,5 +159,5 @@ export function createScene(canvas: HTMLCanvasElement): SceneHandle {
 
   app.start();
 
-  return { app, camera, playerRoot, character, setCameraTarget, dispose };
+  return { app, camera, playerRoot, character, setCameraTarget, shake, dispose };
 }

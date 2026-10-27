@@ -11,6 +11,7 @@ import { speedAt, difficultyAt } from './difficulty';
 import { AudioEngine, type SoundName } from './audio';
 import type { PowerUpKind, CoinSpec, ObstacleSpec, PowerUpSpec } from './types';
 import { type InputBuffer } from './input';
+import { FxPool } from '../render/fx';
 import type { UiHandle, GameSnapshot } from '../ui/screens';
 
 export type GamePhase = 'menu' | 'running' | 'paused' | 'gameover';
@@ -23,6 +24,7 @@ export class Game {
   input?: InputBuffer;
   audio: AudioEngine;
   scene: SceneHandle;
+  fx: FxPool;
   player: PlayerState;
   powerUps: ActivePowerUps;
   score: ScoreState;
@@ -41,6 +43,7 @@ export class Game {
     this.input = input;
     this.audio = audio ?? new AudioEngine();
     this.scene = createScene(canvas);
+    this.fx = new FxPool(this.scene.app, this.scene.app.root);
     this.player = createPlayerState();
     this.powerUps = createPowerUps();
     this.score = createScoreState();
@@ -112,6 +115,7 @@ export class Game {
     }
     this.scene.character.update(this.player, this.distance, dt);
     this.scene.setCameraTarget(playerLaneX(this.player), difficultyAt(this.elapsed));
+    this.fx.update(dt);
   }
 
   private step(dt: number): void {
@@ -158,6 +162,7 @@ export class Game {
           this.score.coins += 1;
           addCoin(this.score);
           this.audio.play('coin');
+this.fx.burst('coin', playerLaneX(this.player), 1, -this.distance);
         }
       }
       for (const pu of pattern.powerUps) {
@@ -191,6 +196,8 @@ export class Game {
     saveBestScore(totalScore(this.score));
     this.best = loadBestScore();
     this.audio.play('crash');
+    this.scene.shake(0.5);
+    this.fx.burst('crash', playerLaneX(this.player), 1, -this.distance);
     this.ui.show('gameover');
     this.ui.update(this.snapshot());
   }
